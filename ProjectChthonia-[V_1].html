@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        :root { --border-color: #fff; }
+        body { background: #000; color: var(--border-color); font-family: 'Courier New', monospace; padding: 10px; display: flex; flex-direction: column; height: 100vh; }
+        #terminal-frame { border: 4px solid var(--border-color); flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        #top-row { display: flex; flex: 1; overflow: hidden; gap: 10px; padding: 10px; }
+        #log-area { flex: 2; overflow-y: auto; border: 1px solid var(--border-color); padding: 10px; }
+        #pack-area { flex: 1; overflow-y: auto; border: 1px solid var(--border-color); padding: 10px; }
+        .input-box { border: 2px solid var(--border-color); padding: 10px; margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        input, textarea { width: 100%; background: #111; color: var(--border-color); border: 1px solid var(--border-color); margin-bottom: 5px; }
+        .full-width { grid-column: span 2; }
+        .pack-item { border: 1px solid var(--border-color); padding: 8px; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <div id="terminal-frame">
+        <div id="top-row">
+            <div id="log-area"><h3>SYSTEM LOGS</h3></div>
+            <div id="pack-area"><h3>ACTIVE DATA PACKS</h3></div>
+        </div>
+    </div>
+
+    <div class="input-box">
+        <input id="pName" placeholder="[DATA PACK NAME]">
+        <input id="pOverview" placeholder="[DESCRIPTION]">
+        <textarea id="pCode" class="full-width" placeholder="[SYSTEM PROTOCOL CODE: Use pack.report('msg', level)]"></textarea>
+        <button class="full-width" onclick="integratePack()">DOCK & INTEGRATE PACKET</button>
+    </div>
+
+<script>
+    let activePacks = {};
+    let threatRegistry = { SYSTEM: 0 };
+
+    function updateTheme(level) {
+        let color = '#fff'; 
+        if (level >= 5) color = '#ff0'; 
+        if (level >= 10) color = '#f80';
+        if (level >= 15) color = '#f00';
+        if (level >= 20) color = '#a0f';
+        document.documentElement.style.setProperty('--border-color', color);
+    }
+
+    function calculateTotal() {
+        const totalThreat = Object.values(threatRegistry).reduce((a, b) => a + b, 0);
+        updateTheme(totalThreat);
+    }
+
+    function log(msg, threat = 0, source = 'SYSTEM') {
+        threatRegistry[source] = threat;
+        calculateTotal();
+        const timestamp = new Date().toLocaleTimeString();
+        document.getElementById('log-area').innerHTML += `<div>[${timestamp}] [${source}] [Threat: ${threat}] ${msg}</div>`;
+        document.getElementById('log-area').scrollTop = document.getElementById('log-area').scrollHeight;
+    }
+
+    function integratePack() {
+        const name = document.getElementById('pName').value;
+        const overview = document.getElementById('pOverview').value;
+        const code = document.getElementById('pCode').value;
+
+        if (!name) return log("ANOMALY: Packet requires a name.", 2, 'SYSTEM');
+
+        try {
+            const packObj = { report: (msg, level) => log(msg, level, name) };
+            new Function('pack', code)(packObj);
+            
+            activePacks[name] = { overview };
+            renderPacks();
+            log("INTEGRATION SUCCESS: " + name, 0, name);
+        } catch (e) {
+            log("SYSTEM ANOMALY: " + e.message, 2, 'SYSTEM');
+        }
+    }
+
+    function renderPacks() {
+        const area = document.getElementById('pack-area');
+        area.innerHTML = "<h3>ACTIVE DATA PACKS</h3>";
+        for (let name in activePacks) {
+            area.innerHTML += `
+                <div class="pack-item">
+                    <b>${name}</b><br><small>${activePacks[name].overview}</small><br>
+                    <button onclick="eject('${name}')">EJECT</button>
+                </div>`;
+        }
+    }
+
+    function eject(name) {
+        delete activePacks[name];
+        delete threatRegistry[name];
+        calculateTotal();
+        renderPacks();
+        log("PACKET EJECTED: " + name, 0, 'SYSTEM');
+    }
+</script>
+</body>
+</html>
